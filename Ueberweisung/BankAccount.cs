@@ -11,14 +11,19 @@ namespace Ueberweisung
         public decimal InitValue { get; private set; }
         public int IBAN { get; private set; }
         private string Country { get; set; }
-        public bool Active { get; private set; } = true;
+        public bool AllowNegativeBalance { get; private set; } = true;
+        public bool Restrict { get; private set; } = false;
+        public int TotalTransactions { get; private set; }
+        public int FailedTransactions { get; private set; }
 
-        public BankAccount(decimal balance = 0.0m)
+        public BankAccount(decimal balance = 0.0m, bool allowNegative = true, bool BlockUnderZero = false)
         {
             Balance = balance;
             InitValue = balance;
             GenerateIBAN();
             Country = "DE";
+            AllowNegativeBalance = allowNegative;
+            Restrict = BlockUnderZero;
         }
 
         public string GetIBAN()
@@ -44,8 +49,21 @@ namespace Ueberweisung
             {
                 lock (higher.Lock)
                 {
+                    if(Restrict && Balance - amount < 0)
+                    {
+                        Console.WriteLine("Restrict under 0 EUR.");
+                        FailedTransactions++;
+                        return;
+                    }
+                    if(!AllowNegativeBalance && Balance  <= 0)
+                    {
+                        Console.WriteLine("Error under 0 EUR.");
+                        FailedTransactions++;
+                        return;
+                    }
                     otherAccount.Balance += amount;
                     Balance -= amount;
+                    TotalTransactions++;
                 }
             }
             PrintTransaction(otherAccount, amount);
@@ -59,7 +77,7 @@ namespace Ueberweisung
 
         private void PrintTransaction(BankAccount otherAccount, decimal amount)
         {
-            Console.WriteLine("{0,13} | {1,13} | {2,-8}EUR", this.IBAN, otherAccount.IBAN, amount);
+            Console.WriteLine("{0,13} -> {1,13} | {2,-8}EUR", Country + this.IBAN, otherAccount.Country + otherAccount.IBAN, Math.Round(amount,2));
         }
 
         public void Print()
